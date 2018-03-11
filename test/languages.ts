@@ -102,7 +102,7 @@ export const RubyLanguage: Language = {
   allowMissingNull: true,
   output: "TopLevel.rb",
   topLevel: "TopLevel",
-  skipJSON: ["combinations.json", "nst-test-suite.json"],
+  skipJSON: [],
   skipSchema: [],
   skipMiscJSON: false,
   rendererOptions: {},

@@ -394,11 +394,14 @@ class RubyRenderer extends ConvenienceRenderer {
 
             this.ensureBlankLine();
             this.emitBlock(["def self.from_dynamic!(d)"], () => {
+                this.emitLine("fail unless d.is_a? Hash");
                 this.emitLine("new(");
                 this.indent(() => {
                     const inits: Sourcelike[][] = [];
                     this.forEachClassProperty(c, "none", (name, jsonName, p) => {
-                        const dynamic = `d["${stringEscape(jsonName)}"]`;
+                        const dynamic = p.isOptional
+                            ? `d["${stringEscape(jsonName)}"]`
+                            : `d.fetch("${stringEscape(jsonName)}")`;
                         const expression = this.fromDynamic(p.type, dynamic, p.isOptional);
                         inits.push([[name, ": "], [expression, ","]]);
                     });
@@ -457,7 +460,7 @@ class RubyRenderer extends ConvenienceRenderer {
             }
 
             this.ensureBlankLine();
-            const [maybeNull, nonNulls] = removeNullFromUnion(u, true);
+            const [maybeNull, nonNulls] = removeNullFromUnion(u, false);
             this.emitBlock("def self.from_dynamic!(d)", () => {
                 const instance = "union";
                 this.emitLine(instance, " = new(");
@@ -481,7 +484,11 @@ class RubyRenderer extends ConvenienceRenderer {
                 this.emitLine(")");
 
                 if (maybeNull === null) {
-                    this.emitLine(`raise "Invalid union" if `, instance, `.__attributes__.all? { |k, v| v.nil? }`);
+                    this.emitLine(
+                        `raise "Invalid union" unless `,
+                        instance,
+                        `.__attributes__.count { |k, v| not v.nil? } == 1`
+                    );
                 } else {
                     const theNull = maybeNull;
                     const testTheNull = [
