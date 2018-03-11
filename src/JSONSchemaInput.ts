@@ -81,18 +81,14 @@ export class Ref {
             return panic("$ref must be a string");
         }
 
-        let address = "";
         const indexOfHash = ref.indexOf("#");
-        if (indexOfHash >= 0) {
-            address = ref.substr(0, indexOfHash);
-            ref = ref.substr(indexOfHash + 1);
-            // FIXME: We could check this character first and then only do one `substr`.
-            if (ref.startsWith("/")) {
-                ref = ref.substr(1);
-            }
+        if (indexOfHash < 0) {
+            return Ref.root(ref);
         }
 
-        const elements = Ref.parsePath(ref);
+        const address = ref.substr(0, indexOfHash);
+        const path = ref.substr(indexOfHash);
+        const elements = Ref.parsePath(path);
         return new Ref(address, elements);
     }
 
@@ -236,6 +232,8 @@ class Location {
 
     updateWithID(id: any) {
         if (typeof id !== "string") return this;
+        // FIXME: This is incorrect.  If the parsed ref doesn't have an address, the
+        // current virtual one's must be used.  The canonizer must do this, too.
         return new Location(this.canonicalRef, Ref.parse(id));
     }
 
