@@ -61,8 +61,13 @@ export class Ref {
     }
 
     private static parsePath(path: string): List<PathElement> {
+        // FIXME: We treat the paths `#/foo` and `#foo` the same, but they
+        // shouldn't be.  Maybe the root `#/` should always have one empty
+        // path element first?
         if (path.startsWith("#/")) {
             path = path.substr(2);
+        } else if (path.startsWith("#")) {
+            path = path.substr(1);
         }
 
         if (path === "") return List();
@@ -116,6 +121,20 @@ export class Ref {
 
     pushType(index: number): Ref {
         return this.pushElement({ kind: PathElementKind.Type, index });
+    }
+
+    resolveAgainst(base: Ref | undefined): Ref {
+        let address: string;
+        if (this.hasAddress) {
+            // FIXME: Address must be interpreted relative to base address.
+            address = this.address;
+        } else {
+            if (base === undefined || !base.hasAddress) {
+                return panic("Top-level ref must have an address");
+            }
+            address = base.address;
+        }
+        return new Ref(address, this.path);
     }
 
     get name(): string {
@@ -234,7 +253,7 @@ class Location {
         if (typeof id !== "string") return this;
         // FIXME: This is incorrect.  If the parsed ref doesn't have an address, the
         // current virtual one's must be used.  The canonizer must do this, too.
-        return new Location(this.canonicalRef, Ref.parse(id));
+        return new Location(this.canonicalRef, Ref.parse(id).resolveAgainst(this.virtualRef));
     }
 
     push(...keys: string[]): Location {
@@ -278,50 +297,43 @@ class Canonizer {
     private _map: Map<Ref, Ref> = Map();
     private _schemaAddressesAdded: Set<string> = Set();
 
-    private addID(mapped: string, canonical: Ref): void {
-        const ref = Ref.parse(mapped);
+    private addID(mapped: string, loc: Location): void {
+        const ref = Ref.parse(mapped).resolveAgainst(loc.virtualRef);
         assert(ref.hasAddress, "$id must have an address");
-        this._map = this._map.set(ref, canonical);
+        this._map = this._map.set(ref, loc.canonicalRef);
     }
 
-    private addIDs(schema: any, canonical: Ref) {
+    private addIDs(schema: any, loc: Location) {
         if (schema === null) return;
         if (Array.isArray(schema)) {
             for (let i = 0; i < schema.length; i++) {
-                this.addIDs(schema[i], canonical.push(i.toString()));
+                this.addIDs(schema[i], loc.push(i.toString()));
             }
             return;
         }
         if (typeof schema !== "object") {
             return;
         }
-        if (typeof schema["$id"] === "string") {
-            this.addID(schema["$id"], canonical);
+        const maybeID = schema["$id"];
+        if (typeof maybeID === "string") {
+            this.addID(maybeID, loc);
+            loc = loc.updateWithID(maybeID);
         }
         for (const property of Object.getOwnPropertyNames(schema)) {
-            this.addIDs(schema[property], canonical.push(property));
+            this.addIDs(schema[property], loc.push(property));
         }
     }
 
     addSchema(schema: any, address: string) {
         if (this._schemaAddressesAdded.has(address)) return;
 
-        this.addIDs(schema, Ref.root(address));
+        this.addIDs(schema, new Location(Ref.root(address)));
         this._schemaAddressesAdded = this._schemaAddressesAdded.add(address);
     }
 
     // Returns: Canonical ref, full virtual ref
     canonize(virtualBase: Ref | undefined, ref: Ref): [Ref, Ref] {
-        let address: string;
-        if (ref.hasAddress) {
-            address = ref.address;
-        } else {
-            if (virtualBase === undefined) {
-                return panic("Top-level ref must have an address");
-            }
-            address = virtualBase.address;
-        }
-        const fullVirtual = new Ref(address, ref.path);
+        const fullVirtual = ref.resolveAgainst(virtualBase);
         let virtual = fullVirtual;
         let relative: List<PathElement> = List();
         for (; ;) {
