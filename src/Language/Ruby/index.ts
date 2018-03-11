@@ -400,8 +400,11 @@ class RubyRenderer extends ConvenienceRenderer {
                     const inits: Sourcelike[][] = [];
                     this.forEachClassProperty(c, "none", (name, jsonName, p) => {
                         const dynamic = p.isOptional
-                            ? `d["${stringEscape(jsonName)}"]`
-                            : `d.fetch("${stringEscape(jsonName)}")`;
+                            ? // If key is not found in hash, this will be nil
+                              `d["${stringEscape(jsonName)}"]`
+                            : // This will raise a runtime error if the key is not found in the hash
+                              `d.fetch("${stringEscape(jsonName)}")`;
+
                         const expression = this.fromDynamic(p.type, dynamic, p.isOptional);
                         inits.push([[name, ": "], [expression, ","]]);
                     });
