@@ -394,7 +394,7 @@ class RubyRenderer extends ConvenienceRenderer {
 
             this.ensureBlankLine();
             this.emitBlock(["def self.from_dynamic!(d)"], () => {
-                this.emitLine("fail unless d.is_a? Hash");
+                this.emitLine(`raise ArgumentError, "Argument is not a hash" unless d.is_a? Hash`);
                 this.emitLine("new(");
                 this.indent(() => {
                     const inits: Sourcelike[][] = [];
