@@ -217,6 +217,8 @@ export class Ref {
                 case PathElementKind.KeyOrIndex:
                     acc = addHashCode(acc, hash(pe.key));
                     break;
+                default:
+                    break;
             }
         });
         return acc;
@@ -229,7 +231,7 @@ class Location {
 
     constructor(canonicalRef: Ref, virtualRef?: Ref) {
         this.canonicalRef = canonicalRef;
-        this.virtualRef = virtualRef !== undefined ? virtualRef : canonicalRef;;
+        this.virtualRef = virtualRef !== undefined ? virtualRef : canonicalRef;
     }
 
     updateWithID(id: any) {
